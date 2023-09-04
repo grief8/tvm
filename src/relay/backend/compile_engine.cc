@@ -549,8 +549,16 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
 class CompileEngineImpl : public CompileEngineNode {
  public:
   // Lower the function.
-  CachedFunc Lower(const CCacheKey& key) { return LowerInternal(key)->cached_func; }
-
+  CachedFunc Lower(const CCacheKey& key) {  return LowerInternal(key)->cached_func; }
+  void GetNamePrex() {
+    int i;
+    name_pref.clear();
+    srand((unsigned)time(NULL));
+    for(i=0;i<4;++i) {
+      name_pref.push_back('A'+rand()%26);
+    }   
+    name_pref.push_back('_');
+    LG << "CompileEngineImpl name:" <<__FUNCTION__ << name_pref;}
   // For now, build one module per function.
   PackedFunc JIT(const CCacheKey& key) final {
     CCacheValue value = LowerInternal(key);
@@ -745,6 +753,7 @@ class CompileEngineImpl : public CompileEngineNode {
     for (size_t i = 0; i < name.length(); ++i) {
       if (name[i] == '.') name[i] = '_';
     }
+    name = name_pref + name;
     while (true) {
       auto it = name_map_.find(name);
       if (it == name_map_.end()) {
@@ -767,6 +776,7 @@ class CompileEngineImpl : public CompileEngineNode {
   std::unordered_map<CCacheKey, CCacheValue> cache_;
   /*! \brief internal compiler cache for shape funcs */
   std::unordered_map<CCacheKey, CCacheValue> shape_func_cache_;
+  std::string name_pref;
 };
 
 /*! \brief The global compile engine */

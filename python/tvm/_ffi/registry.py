@@ -285,8 +285,9 @@ def _init_api(namespace, target_module_name=None):
 
 def _init_api_prefix(module_name, prefix):
     module = sys.modules[module_name]
-
+    # print("---prefix:", prefix)
     for name in list_global_func_names():
+        # print("---name:",name)
         if not name.startswith(prefix):
             continue
 
@@ -298,5 +299,6 @@ def _init_api_prefix(module_name, prefix):
         f = get_global_func(name)
         ff = _get_api(f)
         ff.__name__ = fname
+        # print("---ff.__name__:", fname)
         ff.__doc__ = ("TVM PackedFunc %s. " % fname)
         setattr(target_module, ff.__name__, ff)

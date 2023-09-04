@@ -17,7 +17,7 @@
  * under the License.
  */
 
-use std::{cmp, collections::HashMap, convert::TryFrom, iter::FromIterator, mem, str};
+use std::{cmp, collections::HashMap, convert::TryFrom, iter::FromIterator, mem, str, time::SystemTime};
 
 use failure::Error;
 use nom::{
@@ -183,6 +183,14 @@ impl<'m, 't> GraphExecutor<'m, 't> {
             graph,
         })
     }
+    pub fn reset_graph<M: 'm + Module>(graph: Graph, lib: &'m M) -> Result<Self, Error> {
+        let tensors = Self::setup_storages(&graph)?;
+        Ok(GraphExecutor {
+            op_execs: Self::reset_op_execs(&graph, lib, &tensors)?,
+            tensors,
+            graph,
+        })
+    }
 
     /// Runs the computation graph.
     pub fn run(&mut self) {
@@ -287,13 +295,74 @@ impl<'m, 't> GraphExecutor<'m, 't> {
                     .iter()
                     .map(|t| t.into())
                     .collect::<Vec<TVMArgValue>>();
+                // let sy_time = SystemTime::now();
                 func(&args).unwrap();
+                // let usetime = SystemTime::now().duration_since(sy_time).unwrap().as_micros();
+                // println!("function name:{} time:{:>#10} us", attrs.func_name, usetime);
             });
             op_execs.push(op);
         }
         Ok(op_execs)
     }
 
+    /// Creates closures which represent the computation performed by this graph.
+    fn reset_op_execs<M: 'm + Module>(
+            graph: &Graph,
+            lib: &'m M,
+            tensors: &[Tensor<'t>],
+        ) -> Result<Vec<Box<dyn Fn() + 'm>>, Error> {
+            ensure!(graph.node_row_ptr.is_some(), "Missing node_row_ptr.");
+            let node_row_ptr = graph.node_row_ptr.as_ref().unwrap();
+    
+            let mut op_execs = Vec::new();
+            for (i, node) in graph.nodes.iter().enumerate() {
+                if node.op == "null" {
+                    continue;
+                }
+                ensure!(node.op == "tvm_op", "Only TVM ops are supported.");
+                ensure!(node.attrs.is_some(), "Missing node attrs.");
+    
+                let attrs = node.parse_attrs()?;
+    
+                if attrs.func_name == "__nop" {
+                    continue;
+                }
+    
+                let func = lib
+                    .get_function(&attrs.func_name)
+                    .ok_or_else(|| format_err!("Library is missing function {}", attrs.func_name))?;
+                let arg_indices = node
+                    .inputs
+                    .iter()
+                    .map(|entry| graph.entry_index(entry))
+                    .chain((0..attrs.num_outputs).map(|oi| Ok(node_row_ptr[i] + oi)));
+    
+                let dl_tensors = arg_indices
+                    .map(|idx| {
+                        let tensor = &tensors[idx?];
+                        Ok(if attrs.flatten_data {
+                            Tensor::as_dltensor(tensor, true /* flatten */)
+                        } else {
+                            DLTensor::from(tensor)
+                        })
+                    })
+                    .collect::<Result<Vec<DLTensor>, Error>>()
+                    .unwrap();
+                let op: Box<dyn Fn()> = Box::new(move || {
+                    let args = dl_tensors
+                        .iter()
+                        .map(|t| t.into())
+                        .collect::<Vec<TVMArgValue>>();
+                    let sy_time = SystemTime::now();
+                    func(&args).unwrap();
+                    let usetime = SystemTime::now().duration_since(sy_time).unwrap().as_micros();
+                    println!("function name:{} time:{:>#10}us", attrs.func_name, usetime);
+                });
+                op_execs.push(op);
+            }
+            Ok(op_execs)
+        }
+    
     pub fn load_params(&mut self, params: HashMap<String, Tensor>) {
         params.into_iter().for_each(|(name, param)| {
             self.set_input(name, param);

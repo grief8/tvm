@@ -27,3 +27,4 @@ ndarray = "0.12"
 tvm-frontend = { path = "../../" }
 image = "0.20"
 csv = "1.1"
+bindgen = "0.51.0"

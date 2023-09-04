@@ -22,3 +22,4 @@
 3. `pip install numpy decorator psutil`
 4. `cargo run` to start the enclave TCP server
 5. Send a 28x28 "image" to the enclave model server using `head -c $((28*28*4)) /dev/urandom | nc 127.0.0.1 4242 | python read_results.py`
+head -c $((6*224*224*4)) /dev/urandom | nc 127.0.0.1 4242 | python read_results.py

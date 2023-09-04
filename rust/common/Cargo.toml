@@ -30,4 +30,4 @@ failure = { version = "0.1", default-features = false, features = ["derive"] }
 ndarray = "0.12"
 
 [build-dependencies]
-bindgen = "0.51"
+bindgen = "0.51.0"

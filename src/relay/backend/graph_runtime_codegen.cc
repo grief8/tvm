@@ -187,6 +187,7 @@ class GraphRuntimeCodegen : public backend::MemoizedExprTranslator<std::vector<G
   GraphRuntimeCodegen(runtime::Module* mod, const TargetsMap& targets) : mod_(mod) {
     compile_engine_ = CompileEngine::Global();
     targets_ = targets;
+    compile_engine_->GetNamePrex();
   }
 
   LoweredOutput Codegen(relay::Function func) {
@@ -361,6 +362,7 @@ class GraphRuntimeCodegen : public backend::MemoizedExprTranslator<std::vector<G
 
     auto pf0 = GetPackedFunc("relay.backend._make_CCacheKey");
     auto pf1 = GetPackedFunc("relay.backend._CompileEngineLower");
+    LG<<"relay.backend._CompileEngineLower";
     Target target;
     // Handle external function
     if (func->GetAttr<String>(attr::kCompiler).defined()) {
